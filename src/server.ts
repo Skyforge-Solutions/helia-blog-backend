@@ -42,7 +42,7 @@ async function startServer() {
   app.use(helmet());
   app.use(
     cors({
-      origin: process.env.FRONTEND_URL || "http://localhost:3000",
+      origin: process.env.FRONTEND_URL || "*",
       methods: ["GET", "POST", "PUT", "DELETE"],
       allowedHeaders: ["Content-Type", "Authorization"],
       credentials: true, // Allow cookies to be sent with requests

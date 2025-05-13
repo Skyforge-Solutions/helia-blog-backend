@@ -1,5 +1,5 @@
 // Admin authentication routes
-import { Router, Request, Response } from "express";
+import express, { Router, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { db, withClient } from "../db";
 import * as bcrypt from "bcrypt";
@@ -24,7 +24,7 @@ interface AuthPayload {
 }
 
 // Create express router
-const router = Router();
+const router = express.Router();
 
 /**
  * POST /api/auth/login

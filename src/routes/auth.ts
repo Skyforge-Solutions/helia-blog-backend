@@ -44,13 +44,7 @@ router.post("/login", async (req: Request, res: Response) => {
     }
 
     // Search for the admin user
-    let adminUser: {
-      id: string;
-      username: string;
-      password: string;
-      created_at: Date;
-      last_login: Date | null;
-    } | null = null;
+    let adminUser: AdminDB | null = null;
 
     // First db operation: find the admin
     try {
@@ -89,9 +83,9 @@ router.post("/login", async (req: Request, res: Response) => {
       return;
     }
 
-    // Verify password
+    // Verify password - Using non-null assertion since we've checked above that adminUser is not null
     try {
-      const isValid = await bcrypt.compare(password, adminUser.password);
+      const isValid = await bcrypt.compare(password, adminUser!.password);
 
       if (!isValid) {
         res.status(401).json({
@@ -109,12 +103,12 @@ router.post("/login", async (req: Request, res: Response) => {
       return;
     }
 
-    // Update last login time
+    // Update last login time - Safe to use non-null assertion since we already checked
     try {
       await withClient(async (client) => {
         await client.query(
           "UPDATE admins SET last_login = NOW() WHERE id = $1",
-          [adminUser.id]
+          [adminUser!.id]
         );
       });
     } catch (error) {
@@ -122,10 +116,10 @@ router.post("/login", async (req: Request, res: Response) => {
       console.error("Failed to update last login time:", error);
     }
 
-    // Create auth payload
+    // Create auth payload - Safe to use non-null assertion here
     const authPayload: AdminPayload = {
-      id: adminUser.id,
-      username: adminUser.username,
+      id: adminUser!.id,
+      username: adminUser!.username,
     };
 
     // Set JWT cookie
