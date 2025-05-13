@@ -3,7 +3,7 @@ import { Router, Request, Response } from "express";
 import { db, withClient } from "../db";
 import { blogs } from "../schema";
 import { eq, sql } from "drizzle-orm";
-import { verifyJWT } from "../middleware/auth";
+import { verifyJWT } from "../middleware/auth-middleware";
 import { cache } from "../utils/cache";
 
 const router = Router();
@@ -23,7 +23,7 @@ const STATS_CACHE_TTL = 60; // 1 minute cache for statistics
  */
 router.get(
   "/blogs",
-  verifyJWT as any,
+  verifyJWT,
   async (req: Request, res: Response): Promise<void> => {
     try {
       // Parse query parameters
@@ -81,7 +81,7 @@ router.get(
  */
 router.get(
   "/blogs/:id",
-  verifyJWT as any,
+  verifyJWT,
   async (req: Request, res: Response): Promise<void> => {
     try {
       const id = req.params.id;
@@ -129,7 +129,7 @@ router.get(
  */
 router.put(
   "/blogs/:id/content",
-  verifyJWT as any,
+  verifyJWT,
   async (req: Request, res: Response): Promise<void> => {
     try {
       const id = req.params.id;
@@ -194,7 +194,7 @@ router.put(
  */
 router.put(
   "/blogs/:id/status",
-  verifyJWT as any,
+  verifyJWT,
   async (req: Request, res: Response): Promise<void> => {
     try {
       const id = req.params.id;
@@ -263,7 +263,7 @@ router.put(
  */
 router.delete(
   "/blogs/:id",
-  verifyJWT as any,
+  verifyJWT,
   async (req: Request, res: Response): Promise<void> => {
     try {
       const id = req.params.id;
@@ -310,7 +310,7 @@ router.delete(
  */
 router.get(
   "/stats",
-  verifyJWT as any,
+  verifyJWT,
   async (req: Request, res: Response): Promise<void> => {
     try {
       // Try to get stats from cache first
@@ -364,3 +364,4 @@ router.get(
 );
 
 export default router;
+ 

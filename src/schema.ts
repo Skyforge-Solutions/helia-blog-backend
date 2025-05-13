@@ -41,3 +41,4 @@ export const admins = pgTable("admins", {
     .default(sql`now()`),
   lastLogin: timestamp("last_login", { withTimezone: true }),
 });
+ 

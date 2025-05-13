@@ -28,7 +28,7 @@ const router = express.Router();
 
 /**
  * POST /api/auth/login
- * Authenticate admin user and set session/cookies
+ * Authenticate admin user and return JWT token
  */
 router.post("/login", async (req: Request, res: Response) => {
   try {
@@ -98,34 +98,31 @@ router.post("/login", async (req: Request, res: Response) => {
       );
     });
 
-    // Create payload for JWT and session
+    // Create payload for JWT
     const authPayload: AuthPayload = {
       id: adminId,
       username: adminUsername,
     };
 
-    // Set JWT cookie
-    res.cookie(
-      "admin_token",
-      jwt.sign(authPayload, process.env.JWT_SECRET || "secret"),
-      {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 30 * 60 * 1000, // 30 minutes
-        sameSite: "lax",
-        signed: true,
-      }
-    );
+    // Generate JWT token
+    const token = jwt.sign(authPayload, process.env.JWT_SECRET || "secret", {
+      expiresIn: "30m",
+    });
 
-    // Set session data
-    if (req.session) {
-      (req.session as any).admin = authPayload;
-    }
+    // Set JWT cookie (for backward compatibility)
+    res.cookie("admin_token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 30 * 60 * 1000, // 30 minutes
+      sameSite: "lax",
+      signed: true,
+    });
 
-    // Send success response
+    // Send success response with token
     return res.json({
       success: true,
       message: "Login successful",
+      token: token, // Return token in response for clients to use in Authorization header
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -138,18 +135,9 @@ router.post("/login", async (req: Request, res: Response) => {
 
 /**
  * POST /api/auth/logout
- * Clear admin authentication
+ * Clear admin authentication cookie
  */
 router.post("/logout", (req: Request, res: Response) => {
-  // Clear session
-  if (req.session) {
-    req.session.destroy((err) => {
-      if (err) {
-        console.error("Error destroying session:", err);
-      }
-    });
-  }
-
   // Clear auth cookie
   res.clearCookie("admin_token");
 
@@ -162,23 +150,49 @@ router.post("/logout", (req: Request, res: Response) => {
 
 /**
  * GET /api/auth/validate
- * Check if user is authenticated
+ * Check if user is authenticated based on JWT
  */
 router.get("/validate", (req: Request, res: Response) => {
-  const admin = (req as any).admin as AuthPayload | undefined;
+  try {
+    // Get token from Authorization header or cookie
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.substring(7)
+      : req.signedCookies?.admin_token;
 
-  if (admin) {
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "No authentication token provided",
+      });
+    }
+
+    // Verify the token
+    const decodedToken = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "secret"
+    ) as AuthPayload;
+
+    if (!decodedToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authentication token",
+      });
+    }
+
+    // User is authenticated
     return res.json({
       success: true,
       data: {
-        username: admin.username,
+        username: decodedToken.username,
         authenticated: true,
       },
     });
-  } else {
+  } catch (error) {
+    console.error("Token validation error:", error);
     return res.status(401).json({
       success: false,
-      message: "Not authenticated",
+      message: "Authentication failed",
     });
   }
 });

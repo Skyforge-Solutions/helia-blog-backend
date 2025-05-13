@@ -61,41 +61,18 @@ async function runMigration() {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(adminPassword, saltRounds);
 
-    // Check if admin user exists
-    const adminUsers = await db
-      .select()
-      .from(admins)
-      .where(sql`username = ${adminUsername}`)
-      .execute();
+    // Create or update admin user with a single upsert operation
+    console.log("👤 Upserting admin user...");
 
-    if (adminUsers.length === 0) {
-      // Admin doesn't exist, create it
-      console.log("👤 Creating admin user...");
+    // Use raw SQL for the upsert operation
+    await db.execute(sql`
+      INSERT INTO admins (username, password)
+      VALUES (${adminUsername}, ${hashedPassword})
+      ON CONFLICT (username) 
+      DO UPDATE SET password = ${hashedPassword}
+    `);
 
-      await db
-        .insert(admins)
-        .values({
-          username: adminUsername,
-          password: hashedPassword,
-        })
-        .execute();
-
-      console.log("✅ Admin user created successfully");
-    } else {
-      // Admin exists, update password to match env var
-      console.log("🔄 Checking admin credentials...");
-
-      // Update the admin credentials to match env vars
-      await db
-        .update(admins)
-        .set({
-          password: hashedPassword,
-        })
-        .where(sql`username = ${adminUsername}`)
-        .execute();
-
-      console.log("✅ Admin credentials updated successfully");
-    }
+    console.log("✅ Admin user upserted successfully");
 
     console.log("✅ Database migration and seeding completed successfully");
   } catch (error) {

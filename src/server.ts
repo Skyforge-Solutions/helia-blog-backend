@@ -6,16 +6,16 @@ import cors from "cors";
 import cluster from "cluster";
 import os from "os";
 import cookieParser from "cookie-parser";
-import session from "express-session";
 import { init as initDb, closeDatabase } from "./db";
 import blogRoutes from "./routes/blog";
 // import authRoutes from "./routes/auth"; // Old auth routes with type problems
 import adminRoutes from "./routes/admin";
 // import adminAuthRoutes from "./routes/admin-routes"; // New admin auth routes with TS issues
 
-// Import JavaScript version of admin auth routes
+// Import JavaScript version of admin auth routes - FIX: properly handle default import
 // @ts-ignore - Allow JS module import
-const adminAuthRoutes = require("./routes/admin-auth.js");
+const adminAuthRoutesModule = require("./routes/admin-auth.js");
+const adminAuthRoutes = adminAuthRoutesModule.default || adminAuthRoutesModule;
 
 // Determine the number of CPU cores to use (leave one for the OS)
 const numCPUs = Math.max(1, os.cpus().length - 1);
@@ -42,7 +42,7 @@ async function startServer() {
   app.use(helmet());
   app.use(
     cors({
-      origin: process.env.FRONTEND_URL || "*",
+      origin: process.env.FRONTEND_URL || "http://localhost:3000",
       methods: ["GET", "POST", "PUT", "DELETE"],
       allowedHeaders: ["Content-Type", "Authorization"],
       credentials: true, // Allow cookies to be sent with requests
@@ -54,21 +54,6 @@ async function startServer() {
 
   // Add cookie parser middleware
   app.use(cookieParser(process.env.JWT_SECRET)); // Use JWT secret for signing cookies
-
-  // Add session middleware
-  app.use(
-    session({
-      secret: process.env.JWT_SECRET || "admin-secret",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        secure: process.env.NODE_ENV === "production", // Use secure cookies in production
-        httpOnly: true, // Prevent JavaScript access to cookies
-        maxAge: 30 * 60 * 1000, // 30 minutes (same as JWT)
-        sameSite: "lax", // Allow cookies from same site
-      },
-    })
-  );
 
   // Log requests in development
   if (process.env.NODE_ENV !== "production") {
@@ -204,7 +189,7 @@ function setupGracefulShutdown(server: any) {
 async function start() {
   if (cluster.isPrimary && process.env.NODE_ENV === "production") {
     console.log(`🧠 Primary ${process.pid} is running`);
-    console.log(`🔄 Starting ${numCPUs} workers...`);
+    console.log(`�� Starting ${numCPUs} workers...`);
 
     // Fork workers equal to number of CPUs
     for (let i = 0; i < numCPUs; i++) {
@@ -248,20 +233,25 @@ async function start() {
     });
   } else {
     // Worker processes or development mode - start server
-    const server = await startServer();
+    try {
+      const server = await startServer();
 
-    // Listen for shutdown message from primary
-    process.on("message", async (msg) => {
-      if (msg === "shutdown") {
-        console.log(`🛑 Worker ${process.pid} received shutdown message`);
+      // Listen for shutdown message from primary
+      process.on("message", async (msg) => {
+        if (msg === "shutdown") {
+          console.log(`🛑 Worker ${process.pid} received shutdown message`);
 
-        // Close HTTP server and database connections
-        server.close(async () => {
-          await closeDatabase();
-          process.exit(0);
-        });
-      }
-    });
+          // Close HTTP server and database connections
+          server.close(async () => {
+            await closeDatabase();
+            process.exit(0);
+          });
+        }
+      });
+    } catch (error) {
+      console.error("❌ Failed to start worker:", error);
+      process.exit(1);
+    }
   }
 }
 
